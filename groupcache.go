@@ -34,7 +34,7 @@ import (
 
 	pb "github.com/jmuk/groupcache/groupcachepb"
 	"github.com/jmuk/groupcache/lru"
-	"github.com/jmuk/groupcache/singleflight"
+	"golang.org/x/sync/singleflight"
 )
 
 // A Getter loads data for a key.
@@ -178,7 +178,7 @@ type Group struct {
 // implementation.
 type flightGroup interface {
 	// Done is called when Do is done.
-	Do(key string, fn func() (interface{}, error)) (interface{}, error)
+	Do(key string, fn func() (interface{}, error)) (interface{}, error, bool)
 }
 
 // Stats are per-group statistics.
@@ -236,7 +236,7 @@ func (g *Group) Get(ctx context.Context, key string, dest Sink) error {
 // load loads key either by invoking the getter locally or by sending it to another machine.
 func (g *Group) load(ctx context.Context, key string, dest Sink) (value ByteView, destPopulated bool, err error) {
 	g.Stats.Loads.Add(1)
-	viewi, err := g.loadGroup.Do(key, func() (interface{}, error) {
+	viewi, err, _ := g.loadGroup.Do(key, func() (interface{}, error) {
 		// Check the cache again because singleflight can only dedup calls
 		// that overlap concurrently.  It's possible for 2 concurrent
 		// requests to miss the cache, resulting in 2 load() calls.  An
