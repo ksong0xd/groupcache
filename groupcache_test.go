@@ -30,10 +30,9 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/golang/protobuf/proto"
-
 	pb "github.com/jmuk/groupcache/groupcachepb"
 	testpb "github.com/jmuk/groupcache/testpb"
+	"google.golang.org/protobuf/encoding/prototext"
 )
 
 var (
@@ -73,8 +72,8 @@ func testSetup() {
 		}
 		cacheFills.Add(1)
 		return dest.SetProto(&testpb.TestMessage{
-			Name: proto.String("ECHO:" + key),
-			City: proto.String("SOME-CITY"),
+			Name: "ECHO:" + key,
+			City: "SOME-CITY",
 		})
 	}))
 }
@@ -133,7 +132,7 @@ func TestGetDupSuppressProto(t *testing.T) {
 		go func() {
 			tm := new(testpb.TestMessage)
 			if err := protoGroup.Get(dummyCtx, fromChan, ProtoSink(tm)); err != nil {
-				tm.Name = proto.String("ERROR:" + err.Error())
+				tm.Name = "ERROR:" + err.Error()
 			}
 			resc <- tm
 		}()
@@ -150,14 +149,14 @@ func TestGetDupSuppressProto(t *testing.T) {
 	// as well.
 	stringc <- "Fluffy"
 	want := &testpb.TestMessage{
-		Name: proto.String("ECHO:Fluffy"),
-		City: proto.String("SOME-CITY"),
+		Name: "ECHO:Fluffy",
+		City: "SOME-CITY",
 	}
 	for i := 0; i < 2; i++ {
 		select {
 		case v := <-resc:
 			if !reflect.DeepEqual(v, want) {
-				t.Errorf(" Got: %v\nWant: %v", proto.CompactTextString(v), proto.CompactTextString(want))
+				t.Errorf(" Got: %v\nWant: %v", prototext.Format(v), prototext.Format(want))
 			}
 		case <-time.After(5 * time.Second):
 			t.Errorf("timeout waiting on getter #%d of 2", i+1)
