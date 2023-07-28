@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"hash/crc32"
 	"math/rand"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -33,6 +32,7 @@ import (
 	pb "github.com/jmuk/groupcache/groupcachepb"
 	testpb "github.com/jmuk/groupcache/testpb"
 	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -155,7 +155,7 @@ func TestGetDupSuppressProto(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		select {
 		case v := <-resc:
-			if !reflect.DeepEqual(v, want) {
+			if !proto.Equal(v, want) {
 				t.Errorf(" Got: %v\nWant: %v", prototext.Format(v), prototext.Format(want))
 			}
 		case <-time.After(5 * time.Second):
