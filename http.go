@@ -192,7 +192,7 @@ var bufferPool = sync.Pool{
 	New: func() interface{} { return new(bytes.Buffer) },
 }
 
-func (h *httpGetter) Get(ctx context.Context, in *pb.GetRequest, out *pb.GetResponse) error {
+func (h *httpGetter) Get(ctx context.Context, in *pb.GetRequest) (*pb.GetResponse, error) {
 	u := fmt.Sprintf(
 		"%v%v/%v",
 		h.baseURL,
@@ -201,7 +201,7 @@ func (h *httpGetter) Get(ctx context.Context, in *pb.GetRequest, out *pb.GetResp
 	)
 	req, err := http.NewRequest("GET", u, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req = req.WithContext(ctx)
 	tr := http.DefaultTransport
@@ -210,22 +210,23 @@ func (h *httpGetter) Get(ctx context.Context, in *pb.GetRequest, out *pb.GetResp
 	}
 	res, err := tr.RoundTrip(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("server returned: %v", res.Status)
+		return nil, fmt.Errorf("server returned: %v", res.Status)
 	}
 	b := bufferPool.Get().(*bytes.Buffer)
 	b.Reset()
 	defer bufferPool.Put(b)
 	_, err = io.Copy(b, res.Body)
 	if err != nil {
-		return fmt.Errorf("reading response body: %v", err)
+		return nil, fmt.Errorf("reading response body: %v", err)
 	}
+	out := &pb.GetResponse{}
 	err = proto.Unmarshal(b.Bytes(), out)
 	if err != nil {
-		return fmt.Errorf("decoding response body: %v", err)
+		return nil, fmt.Errorf("decoding response body: %v", err)
 	}
-	return nil
+	return out, nil
 }

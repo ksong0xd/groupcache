@@ -230,13 +230,14 @@ type fakePeer struct {
 	fail bool
 }
 
-func (p *fakePeer) Get(_ context.Context, in *pb.GetRequest, out *pb.GetResponse) error {
+func (p *fakePeer) Get(_ context.Context, in *pb.GetRequest) (*pb.GetResponse, error) {
 	p.hits++
 	if p.fail {
-		return errors.New("simulated error from peer")
+		return nil, errors.New("simulated error from peer")
 	}
-	out.Value = []byte("got:" + in.GetKey())
-	return nil
+	return &pb.GetResponse{
+		Value: []byte("got:" + in.GetKey()),
+	}, nil
 }
 
 type fakePeers []ProtoGetter

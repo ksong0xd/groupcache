@@ -306,8 +306,7 @@ func (g *Group) getFromPeer(ctx context.Context, peer ProtoGetter, key string) (
 		Group: g.name,
 		Key:   key,
 	}
-	res := &pb.GetResponse{}
-	err := peer.Get(ctx, req, res)
+	res, err := peer.Get(ctx, req)
 	if err != nil {
 		return ByteView{}, err
 	}
