@@ -11,7 +11,6 @@ import (
 	"github.com/jmuk/groupcache/groupcachepb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -160,15 +159,13 @@ func (p *GRPCPool) Get(ctx context.Context, req *groupcachepb.GetRequest) (*grou
 	if group == nil {
 		return nil, status.Errorf(codes.NotFound, "group %s not found", req.Group)
 	}
-	// Transfer all incoming metadata into the peer.
-	outCtx := ctx
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		outCtx = metadata.NewOutgoingContext(ctx, md)
-	}
 
 	group.Stats.ServerRequests.Add(1)
 	var value []byte
-	if err := group.Get(outCtx, req.Key, AllocatingByteSliceSink(&value)); err != nil {
+	// Do not just call Get(), as it may forward the request to another server
+	// in case that the list of peers has been changed -- it is possible in k8s
+	// environment.
+	if err := group.get(ctx, req.Key, AllocatingByteSliceSink(&value), false /*usePeers*/); err != nil {
 		return nil, err
 	}
 	return &groupcachepb.GetResponse{
