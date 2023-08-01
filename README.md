@@ -1,5 +1,19 @@
 # groupcache
 
+## Note
+
+This is a fork of https://github.com/golang/groupcache with adding some
+extra new features. I recognize the effort of
+https://github.com/mailgun/groupcache but here provides a slightly
+different kind of features:
+- support of gRPC instead of HTTP
+   - upgrade proto file syntax to proto3
+- cleanup some small dependencies -- for example, use golang.org/x/sync/singleflight
+  instead of its own implementation.
+- support of kubernetes deployment, where
+   - the list of peer names are not known a priori
+   - the peer set can change dynamically
+
 ## Summary
 
 groupcache is a distributed caching and cache-filling library, intended as a
