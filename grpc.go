@@ -20,6 +20,7 @@ type GRPCPool struct {
 	self string
 
 	opts grpcOpt
+	s    *grpc.Server
 
 	mu        sync.Mutex
 	peersList []string
@@ -73,14 +74,15 @@ func NewGRPCPool(self string, opts ...GRPCPoolOption) (*GRPCPool, error) {
 		opts: grpcOpt{
 			replicas: defaultReplicas,
 		},
+		conns: map[string]*grpcGetter{},
 	}
 	for _, opt := range opts {
 		opt(&pool.opts)
 	}
 	pool.peers = consistenthash.New(pool.opts.replicas, pool.opts.hashFn)
 
-	s := grpc.NewServer(pool.opts.serverOpts...)
-	s.RegisterService(&groupcachepb.GroupCache_ServiceDesc, pool)
+	pool.s = grpc.NewServer(pool.opts.serverOpts...)
+	pool.s.RegisterService(&groupcachepb.GroupCache_ServiceDesc, pool)
 
 	lis := pool.opts.listener
 	if lis == nil {
@@ -98,10 +100,14 @@ func NewGRPCPool(self string, opts ...GRPCPoolOption) (*GRPCPool, error) {
 			}
 		}
 	}
-	go s.Serve(lis)
+	go pool.s.Serve(lis)
 
 	RegisterPeerPicker(func() PeerPicker { return pool })
 	return pool, nil
+}
+
+func (p *GRPCPool) Shutdown() {
+	p.s.GracefulStop()
 }
 
 func (p *GRPCPool) newListener() (net.Listener, error) {

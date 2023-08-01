@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/jmuk/groupcache"
@@ -28,7 +29,10 @@ type PeersManager struct {
 	serviceName string
 	port        int
 	pool        *groupcache.GRPCPool
-	peers       map[discoveryv1.AddressType]map[string][]string
+	cancel      context.CancelFunc
+
+	mu    sync.Mutex
+	peers map[discoveryv1.AddressType]map[string][]string
 }
 
 func NewPeersManager(
@@ -51,13 +55,24 @@ func NewPeersManager(
 	if err != nil {
 		return nil, err
 	}
-	return &PeersManager{
+	ctx, cancel := context.WithCancel(ctx)
+
+	pm := &PeersManager{
 		pool:        pool,
 		port:        port,
 		client:      client,
 		serviceName: serviceName,
+		cancel:      cancel,
 		peers:       map[discoveryv1.AddressType]map[string][]string{},
-	}, nil
+	}
+
+	pm.watch(ctx, namespace)
+	return pm, nil
+}
+
+func (pm *PeersManager) Stop() {
+	pm.cancel()
+	pm.pool.Shutdown()
 }
 
 func (pm *PeersManager) watch(ctx context.Context, namespace string) {
@@ -100,6 +115,8 @@ func (pm *PeersManager) handleEndpointSlice(es *discoveryv1.EndpointSlice) {
 	if !pm.isRelatedEndpointSlice(es) {
 		return
 	}
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
 
 	peers := make([]string, 0, len(es.Endpoints))
 	for _, e := range es.Endpoints {
@@ -150,6 +167,9 @@ func (pm *PeersManager) OnDelete(obj any) {
 	if !pm.isRelatedEndpointSlice(es) {
 		return
 	}
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
 	m, ok := pm.peers[es.AddressType]
 	if !ok {
 		return
