@@ -14,6 +14,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const defaultReplicas = 50
+
 type GRPCPool struct {
 	groupcachepb.UnimplementedGroupCacheServer
 
