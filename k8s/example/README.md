@@ -234,4 +234,6 @@ $ export NODE_IP=$(kubectl get nodes --namespace default -o jsonpath="{.items[0]
 $ for i in `seq 0 9`; do echo 1234$i; curl http://$NODE_IP:$NODE_PORT/factors?n=1234$i; done
 
 
+### mysql port
+https://github.com/kataras/iris/tree/main/_examples/database/mysql?utm_source=pocket_saves
 
