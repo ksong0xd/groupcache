@@ -1,6 +1,9 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:1.21.0
+#FROM golang:1.21.0
+
+#faster by using local docker image
+FROM cache-client:latest
 
 # Set destination for COPY
 WORKDIR /app

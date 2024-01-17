@@ -154,14 +154,23 @@ kubectl create -f fib.yaml
 docker run -d -p 5001:5000 --name registry registry:2.7
 docker tag cache-client:latest localhost:5001/cache-client
 
-### build and redeploy
+### build and redeploy with using registry
+docker build --tag localhost:5001/cache-client:v24 .
+docker push localhost:5001/cache-client:v24
+kubectl set image deployments/fib fib=localhost:5001/cache-client:v24
 
-docker build --tag localhost:5001/cache-client:v23 .
-docker push localhost:5001/cache-client:v23
-kubectl set image deployments/fib fib=localhost:5001/cache-client:latest
+### build and redeploy without using registry (fastest)
+docker build --tag cache-client:v28 .
+kubectl set image deployments/fib fib=cache-client:v28
+
+
+
+### delete/recreate deployment from yaml file to apply latest
+kubectl delete -f k8s/example/fib.yaml
+kubectl create -f k8s/example/fib.yaml
+
 
 ### create busybox
-
 kubectl run curl-ksong --image=radial/busyboxplus:curl -i --tty --rm
 
 ### curl per pods

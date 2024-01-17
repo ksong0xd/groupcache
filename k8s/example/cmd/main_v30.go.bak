@@ -12,27 +12,18 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"time"
 )
 
 // Assume these are your existing DB handler functions
 func getFromDB1(key string) (string, error) {
-
-	//slow down for 1 seconds
-	time.Sleep(4 * time.Second)
-
+	// Your DB access logic here
 	klog.Info("getFromDB1 called!!!")
 	return "db result 1", nil
 }
 
 func getFromDB2(key string) (string, error) {
-
-	//slow down for 1 seconds
-	time.Sleep(4 * time.Second)
-
 	// Your DB access logic here
 	klog.Info("getFromDB2 called!!!")
-
 	return "db result 2", nil
 }
 
@@ -121,38 +112,34 @@ func main() {
 
 		_, ctx = errgroup.WithContext(ctx)
 
+		//klog.Info("read data from cache")
+		//var s string
+		//if err := g.Get(ctx, key, groupcache.StringSink(&s)); err != nil {
+		//	klog.Info(err)
+		//	return err
+		//}
+
 		//get http request from context ctx
 		klog.Info("get http request context")
 
 		//list up all ctx values
-		httpCtx := ctx.Value("http.request")
-		if httpCtx != nil {
-			r := httpCtx.(*http.Request)
-			if r == nil {
-				klog.Info("http request is nil")
-				return nil
-			}
-
-			//get db handler from map
-			klog.Info("get db handler with " + r.URL.Path)
-			dbHandler := dbHandlers[r.URL.Path]
-			value, err := dbHandler(key)
-			if err != nil {
-				return err
-			}
-
-			klog.Infof("key: %s, value: %d", key, value)
-			result = "key-value-for-" + value
-		} else {
-			klog.Info("http request context is nil for the case of peer call to sharding a data")
-			//sharding feature is that the data is sharded by key and actual process is distributed
-			//so there is case that getter handler is called by peer and the case it doesn't have http request context
-			//the sharding data is not necessary for the case of API + DB case
-			//because the data is already sharded by API which is being called by router (ingress)
-			//so let's turn off sharding feature if it's possible.
-			result = "#############"
+		r := ctx.Value("http.request").(*http.Request)
+		if r == nil {
+			klog.Info("http request is nil")
+			return nil
 		}
 
+		//get db handler from map
+		klog.Info("get db handler with " + r.URL.Path)
+		dbHandler := dbHandlers[r.URL.Path]
+		value, err := dbHandler(key)
+		if err != nil {
+			return err
+		}
+
+		klog.Infof("key: %s, value: %d", key, value)
+
+		result = "key-value-for-" + value
 		return sink.SetString(result)
 	})
 	g = groupcache.NewGroup("fib", 1024*1024, getter)
