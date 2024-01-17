@@ -23,7 +23,7 @@ func getFromDB1(key string) (string, error) {
 	time.Sleep(1 * time.Second)
 
 	klog.Info("getFromDB1 called!!!")
-	return "db result 1", nil
+	return "DB1 handler: db result for " + key + " processed on " + os.Getenv("SELF"), nil
 }
 
 func getFromDB2(key string) (string, error) {
@@ -34,7 +34,7 @@ func getFromDB2(key string) (string, error) {
 	// Your DB access logic here
 	klog.Info("getFromDB2 called!!!")
 
-	return "db result 2", nil
+	return "DB2 handler: db result for " + key + " processed on " + os.Getenv("SELF"), nil
 }
 
 // Map of DB handlers
@@ -133,6 +133,7 @@ func main() {
 			//httpCtx := ctx.Value("http.request")
 			//httpCtx := ctx.Value("api.url")
 
+			//use json instead of context which doesn't work on GRPC
 			resultJson := make(map[string]interface{})
 			json.Unmarshal([]byte(key), &resultJson)
 
@@ -142,13 +143,12 @@ func main() {
 				//	klog.Info("http request is nil")
 				//	return nil
 				//}
-
 				//get db handler from map
 				//klog.Info("get db handler with " + r.URL.Path)
 				//dbHandler := dbHandlers[r.URL.Path]
 
 				dbHandler := dbHandlers[resultJson["url"].(string)]
-				value, err := dbHandler(key)
+				value, err := dbHandler(resultJson["key"].(string))
 				if err != nil {
 					return err
 				}
@@ -187,22 +187,22 @@ func main() {
 		}
 
 		//create a map for json
-		datas := map[string]string{
+		cacheParam := map[string]string{
 			"key": key,
 			"url": r.URL.Path,
 		}
+		jsonString, err := json.Marshal(cacheParam)
 
-		jsonString, err := json.Marshal(datas)
-
-		// get context from http.request
+		//TODO context doesn't work on GRPC
+		//get context from http.request
 		//httpContext := context.WithValue(r.Context(), "http.request", r)
 		//httpContext := context.Background()
 		//httpContext := context.WithValue(ctx, "api.url", "/handler1")
-		c := context.WithValue(context.Background(), "key1", "value1")
-		c = context.WithValue(c, "key2", "value2")
+		//c := context.WithValue(context.Background(), "key1", "value1")
+		//c = context.WithValue(c, "key2", "value2")
 
-		var v string
-		err = g.Get(r.Context(), string(jsonString), groupcache.StringSink(&v))
+		var response string
+		err = g.Get(r.Context(), string(jsonString), groupcache.StringSink(&response))
 		if err != nil {
 			http.Error(w, "failed to obtain the result", http.StatusInternalServerError)
 			return
@@ -210,7 +210,7 @@ func main() {
 
 		w.Header().Add("content-type", "text/plain")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(v))
+		w.Write([]byte(response))
 	}))
 	err := http.ListenAndServe(":"+portStr, nil)
 	panic(err)

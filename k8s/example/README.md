@@ -160,8 +160,8 @@ docker push localhost:5001/cache-client:v24
 kubectl set image deployments/fib fib=localhost:5001/cache-client:v24
 
 ### build and redeploy without using registry (fastest)
-docker build --tag cache-client:v38 .
-kubectl set image deployments/fib fib=cache-client:v38
+docker build --tag cache-client:v40 .
+kubectl set image deployments/fib fib=cache-client:v40
 
 
 
