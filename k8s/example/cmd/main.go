@@ -3,18 +3,34 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"os"
-	"strconv"
-	"sync/atomic"
-
 	"github.com/jmuk/groupcache"
 	"github.com/jmuk/groupcache/k8s"
-	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
+	"net/http"
+	"os"
+	"strconv"
 )
+
+// Assume these are your existing DB handler functions
+func getFromDB1(key string) (string, error) {
+	// Your DB access logic here
+	klog.Info("getFromDB1 called")
+	return "db result 1", nil
+}
+
+func getFromDB2(key string) (string, error) {
+	// Your DB access logic here
+	klog.Info("getFromDB2 called")
+	return "db result 2", nil
+}
+
+// Map of DB handlers
+var dbHandlers = map[string]func(string) (string, error){
+	"/handler1": getFromDB1,
+	"/handler2": getFromDB2,
+}
 
 func main() {
 	klog.Infof("starting")
@@ -66,43 +82,49 @@ func main() {
 
 	var g *groupcache.Group
 	getter := groupcache.GetterFunc(func(ctx context.Context, key string, sink groupcache.Sink) error {
-		klog.Infof("self: %s, key: %s", self, key)
-		keyInt, err := strconv.ParseInt(key, 10, 64)
+		klog.Info("getter called")
+		klog.Infof("new data saved to: %s(self), key: %s", self, key)
+
+		klog.Info("get context")
+		var result string
+		//_, ctx = errgroup.WithContext(ctx)
+
+		//klog.Info("read data from cache")
+		//var s string
+		//if err := g.Get(ctx, key, groupcache.StringSink(&s)); err != nil {
+		//	klog.Info(err)
+		//	return err
+		//}
+
+		//get http request from context ctx
+		klog.Info("get http request context")
+
+		//list up all ctx values
+		r := ctx.Value("http.request").(*http.Request)
+
+		if r == nil {
+			klog.Info("http request is nil")
+			return nil
+		}
+
+		klog.Info("get db handler with " + r.URL.Path)
+		dbHandler := dbHandlers[r.URL.Path]
+		value, err := dbHandler(key)
 		if err != nil {
 			return err
 		}
-		var result int64
-		if keyInt <= 1 {
-			result = keyInt
-		} else {
-			eg, ctx := errgroup.WithContext(ctx)
-			for i := int64(1); i <= 2; i++ {
-				nk := keyInt - i
-				eg.Go(func() error {
-					var s string
-					if err := g.Get(ctx, strconv.FormatInt(nk, 10), groupcache.StringSink(&s)); err != nil {
-						return err
-					}
-					v, err := strconv.ParseInt(s, 10, 64)
-					if err != nil {
-						return err
-					}
-					atomic.AddInt64(&result, v)
-					return nil
-				})
-			}
-			if err := eg.Wait(); err != nil {
-				return err
-			}
-		}
-		klog.Infof("key: %s, value: %d", key, result)
-		return sink.SetString(strconv.FormatInt(result, 10))
+
+		klog.Infof("key: %s, value: %d", key, value)
+
+		result = "key-value-for-" + value
+		return sink.SetString(result)
 	})
 	g = groupcache.NewGroup("fib", 1024*1024, getter)
-	http.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		key := r.URL.Query().Get("q")
+
+	http.Handle("/handler1", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		key := r.URL.Query().Get("key")
 		if key == "" {
-			http.Error(w, "q is not specified", http.StatusInternalServerError)
+			http.Error(w, "key is not specified", http.StatusInternalServerError)
 			return
 		}
 		var v string
