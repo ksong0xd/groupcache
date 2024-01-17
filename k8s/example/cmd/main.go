@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/jmuk/groupcache"
 	"github.com/jmuk/groupcache/k8s"
@@ -19,7 +20,7 @@ import (
 func getFromDB1(key string) (string, error) {
 
 	//slow down for 1 seconds
-	time.Sleep(4 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	klog.Info("getFromDB1 called!!!")
 	return "db result 1", nil
@@ -28,7 +29,7 @@ func getFromDB1(key string) (string, error) {
 func getFromDB2(key string) (string, error) {
 
 	//slow down for 1 seconds
-	time.Sleep(4 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	// Your DB access logic here
 	klog.Info("getFromDB2 called!!!")
@@ -119,38 +120,59 @@ func main() {
 		klog.Info("get context")
 		var result string
 
-		_, ctx = errgroup.WithContext(ctx)
+		eg, ctx := errgroup.WithContext(ctx)
 
-		//get http request from context ctx
-		klog.Info("get http request context")
+		eg.Go(func() error {
 
-		//list up all ctx values
-		httpCtx := ctx.Value("http.request")
-		if httpCtx != nil {
-			r := httpCtx.(*http.Request)
-			if r == nil {
-				klog.Info("http request is nil")
-				return nil
+			var tmpResult string
+
+			//get http request from context ctx
+			klog.Info("get http request context")
+
+			//list up all ctx values
+			//httpCtx := ctx.Value("http.request")
+			//httpCtx := ctx.Value("api.url")
+
+			resultJson := make(map[string]interface{})
+			json.Unmarshal([]byte(key), &resultJson)
+
+			if resultJson != nil {
+				//r := httpCtx.(*http.Request)
+				//if r == nil {
+				//	klog.Info("http request is nil")
+				//	return nil
+				//}
+
+				//get db handler from map
+				//klog.Info("get db handler with " + r.URL.Path)
+				//dbHandler := dbHandlers[r.URL.Path]
+
+				dbHandler := dbHandlers[resultJson["url"].(string)]
+				value, err := dbHandler(key)
+				if err != nil {
+					return err
+				}
+
+				klog.Infof("key: %s, value: %d", key, value)
+				tmpResult = "key-value-for-" + value
+			} else {
+				klog.Info("http request context is nil for the case of peer call to sharding a data")
+				//sharding feature is that the data is sharded by key and actual process is distributed
+				//so there is case that getter handler is called by peer and the case it doesn't have http request context
+				//the sharding data is not necessary for the case of API + DB case
+				//because the data is already sharded by API which is being called by router (ingress)
+				//so let's turn off sharding feature if it's possible.
+
+				tmpResult = "N/A"
 			}
 
-			//get db handler from map
-			klog.Info("get db handler with " + r.URL.Path)
-			dbHandler := dbHandlers[r.URL.Path]
-			value, err := dbHandler(key)
-			if err != nil {
-				return err
-			}
+			//put tmpResult into %result in atomic way
+			result = tmpResult
 
-			klog.Infof("key: %s, value: %d", key, value)
-			result = "key-value-for-" + value
-		} else {
-			klog.Info("http request context is nil for the case of peer call to sharding a data")
-			//sharding feature is that the data is sharded by key and actual process is distributed
-			//so there is case that getter handler is called by peer and the case it doesn't have http request context
-			//the sharding data is not necessary for the case of API + DB case
-			//because the data is already sharded by API which is being called by router (ingress)
-			//so let's turn off sharding feature if it's possible.
-			result = "#############"
+			return nil
+		})
+		if err := eg.Wait(); err != nil {
+			return err
 		}
 
 		return sink.SetString(result)
@@ -164,19 +186,28 @@ func main() {
 			return
 		}
 
-		// get context from http.request
+		//create a map for json
+		datas := map[string]string{
+			"key": key,
+			"url": r.URL.Path,
+		}
 
-		httpContext := context.WithValue(r.Context(), "http.request", r)
-		//req := httpContext.Value("http.request").(*http.Request)
-		//url := req.URL
-		//klog.Infof("ctxTest: %s", url)
+		jsonString, err := json.Marshal(datas)
+
+		// get context from http.request
+		//httpContext := context.WithValue(r.Context(), "http.request", r)
+		//httpContext := context.Background()
+		//httpContext := context.WithValue(ctx, "api.url", "/handler1")
+		c := context.WithValue(context.Background(), "key1", "value1")
+		c = context.WithValue(c, "key2", "value2")
 
 		var v string
-		err := g.Get(httpContext, key, groupcache.StringSink(&v))
+		err = g.Get(r.Context(), string(jsonString), groupcache.StringSink(&v))
 		if err != nil {
 			http.Error(w, "failed to obtain the result", http.StatusInternalServerError)
 			return
 		}
+
 		w.Header().Add("content-type", "text/plain")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(v))
