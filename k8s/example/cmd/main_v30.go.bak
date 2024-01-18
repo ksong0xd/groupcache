@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/jmuk/groupcache"
 	"github.com/jmuk/groupcache/k8s"
@@ -13,28 +12,19 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"time"
 )
 
 // Assume these are your existing DB handler functions
 func getFromDB1(key string) (string, error) {
-
-	//slow down for 1 seconds
-	time.Sleep(1 * time.Second)
-
+	// Your DB access logic here
 	klog.Info("getFromDB1 called!!!")
-	return "DB1 handler: db result for " + key + " processed on " + os.Getenv("SELF"), nil
+	return "db result 1", nil
 }
 
 func getFromDB2(key string) (string, error) {
-
-	//slow down for 1 seconds
-	time.Sleep(1 * time.Second)
-
 	// Your DB access logic here
 	klog.Info("getFromDB2 called!!!")
-
-	return "DB2 handler: db result for " + key + " processed on " + os.Getenv("SELF"), nil
+	return "db result 2", nil
 }
 
 // Map of DB handlers
@@ -120,61 +110,36 @@ func main() {
 		klog.Info("get context")
 		var result string
 
-		eg, ctx := errgroup.WithContext(ctx)
+		_, ctx = errgroup.WithContext(ctx)
 
-		eg.Go(func() error {
+		//klog.Info("read data from cache")
+		//var s string
+		//if err := g.Get(ctx, key, groupcache.StringSink(&s)); err != nil {
+		//	klog.Info(err)
+		//	return err
+		//}
 
-			var tmpResult string
+		//get http request from context ctx
+		klog.Info("get http request context")
 
-			//get http request from context ctx
-			klog.Info("get http request context")
-
-			//list up all ctx values
-			//httpCtx := ctx.Value("http.request")
-			//httpCtx := ctx.Value("api.url")
-
-			//use json instead of context which doesn't work on GRPC
-			resultJson := make(map[string]interface{})
-			json.Unmarshal([]byte(key), &resultJson)
-
-			if resultJson != nil {
-				//r := httpCtx.(*http.Request)
-				//if r == nil {
-				//	klog.Info("http request is nil")
-				//	return nil
-				//}
-				//get db handler from map
-				//klog.Info("get db handler with " + r.URL.Path)
-				//dbHandler := dbHandlers[r.URL.Path]
-
-				dbHandler := dbHandlers[resultJson["url"].(string)]
-				value, err := dbHandler(resultJson["key"].(string))
-				if err != nil {
-					return err
-				}
-
-				klog.Infof("key: %s, value: %d", key, value)
-				tmpResult = "key-value-for-" + value
-			} else {
-				klog.Info("http request context is nil for the case of peer call to sharding a data")
-				//sharding feature is that the data is sharded by key and actual process is distributed
-				//so there is case that getter handler is called by peer and the case it doesn't have http request context
-				//the sharding data is not necessary for the case of API + DB case
-				//because the data is already sharded by API which is being called by router (ingress)
-				//so let's turn off sharding feature if it's possible.
-
-				tmpResult = "N/A"
-			}
-
-			//put tmpResult into %result in atomic way
-			result = tmpResult
-
+		//list up all ctx values
+		r := ctx.Value("http.request").(*http.Request)
+		if r == nil {
+			klog.Info("http request is nil")
 			return nil
-		})
-		if err := eg.Wait(); err != nil {
+		}
+
+		//get db handler from map
+		klog.Info("get db handler with " + r.URL.Path)
+		dbHandler := dbHandlers[r.URL.Path]
+		value, err := dbHandler(key)
+		if err != nil {
 			return err
 		}
 
+		klog.Infof("key: %s, value: %d", key, value)
+
+		result = "key-value-for-" + value
 		return sink.SetString(result)
 	})
 	g = groupcache.NewGroup("fib", 1024*1024, getter)
@@ -186,31 +151,22 @@ func main() {
 			return
 		}
 
-		//create a map for json
-		cacheParam := map[string]string{
-			"key": key,
-			"url": r.URL.Path,
-		}
-		jsonString, err := json.Marshal(cacheParam)
+		// get context from http.request
 
-		//TODO context doesn't work on GRPC
-		//get context from http.request
-		//httpContext := context.WithValue(r.Context(), "http.request", r)
-		//httpContext := context.Background()
-		//httpContext := context.WithValue(ctx, "api.url", "/handler1")
-		//c := context.WithValue(context.Background(), "key1", "value1")
-		//c = context.WithValue(c, "key2", "value2")
+		httpContext := context.WithValue(r.Context(), "http.request", r)
+		//req := httpContext.Value("http.request").(*http.Request)
+		//url := req.URL
+		//klog.Infof("ctxTest: %s", url)
 
-		var response string
-		err = g.Get(r.Context(), string(jsonString), groupcache.StringSink(&response))
+		var v string
+		err := g.Get(httpContext, key, groupcache.StringSink(&v))
 		if err != nil {
 			http.Error(w, "failed to obtain the result", http.StatusInternalServerError)
 			return
 		}
-
 		w.Header().Add("content-type", "text/plain")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(response))
+		w.Write([]byte(v))
 	}))
 	err := http.ListenAndServe(":"+portStr, nil)
 	panic(err)
