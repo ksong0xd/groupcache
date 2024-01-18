@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jmuk/groupcache"
+	"github.com/ksong0xd/groupcache"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	discoveryv1 "k8s.io/api/discovery/v1"

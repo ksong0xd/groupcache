@@ -29,8 +29,8 @@ import (
 	"time"
 	"unsafe"
 
-	pb "github.com/jmuk/groupcache/groupcachepb"
-	testpb "github.com/jmuk/groupcache/testpb"
+	pb "github.com/ksong0xd/groupcache/groupcachepb"
+	testpb "github.com/ksong0xd/groupcache/testpb"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
 )

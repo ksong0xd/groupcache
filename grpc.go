@@ -7,8 +7,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/jmuk/groupcache/consistenthash"
-	"github.com/jmuk/groupcache/groupcachepb"
+	"github.com/ksong0xd/groupcache/consistenthash"
+	"github.com/ksong0xd/groupcache/groupcachepb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

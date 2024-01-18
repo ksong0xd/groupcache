@@ -18,7 +18,7 @@ syntax = "proto3";
 
 package testpb;
 
-option go_package = "github.com/jmuk/groupcache/testpb";
+option go_package = "github.com/ksong0xd/groupcache/testpb";
 
 message TestMessage {
   string name = 1;

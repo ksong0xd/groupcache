@@ -1,4 +1,4 @@
-module github.com/jmuk/groupcache
+module github.com/ksong0xd/groupcache
 
 go 1.20
 

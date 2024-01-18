@@ -21,7 +21,7 @@ package groupcache
 import (
 	"context"
 
-	pb "github.com/jmuk/groupcache/groupcachepb"
+	pb "github.com/ksong0xd/groupcache/groupcachepb"
 )
 
 // Context is an alias to context.Context for backwards compatibility purposes.

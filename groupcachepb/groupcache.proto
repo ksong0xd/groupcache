@@ -18,7 +18,7 @@ syntax = "proto3";
 
 package groupcachepb;
 
-option go_package = "github.com/jmuk/groupcache/groupcachepb";
+option go_package = "github.com/ksong0xd/groupcache/groupcachepb";
 
 message GetRequest {
   string group = 1;
